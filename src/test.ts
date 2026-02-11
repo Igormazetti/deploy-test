@@ -1,0 +1,42 @@
+/**
+ * A simple function and test for our Jenkins CI/CD learning project.
+ * When Jenkins runs this pipeline, it will:
+ *   1. Compile this TypeScript file to JavaScript
+ *   2. Run the compiled JavaScript to verify it works
+ */
+
+function add(a: number, b: number): number {
+  return a + b;
+}
+
+function runTests(): void {
+  console.log("Running tests...\n");
+
+  // Test 1: Basic addition
+  const result1 = add(2, 3);
+  if (result1 !== 5) {
+    console.error(`FAIL: add(2, 3) expected 5 but got ${result1}`);
+    process.exit(1); // Exit with error code — Jenkins sees this as a failure
+  }
+  console.log("PASS: add(2, 3) = 5");
+
+  // Test 2: Negative numbers
+  const result2 = add(-1, 1);
+  if (result2 !== 0) {
+    console.error(`FAIL: add(-1, 1) expected 0 but got ${result2}`);
+    process.exit(1);
+  }
+  console.log("PASS: add(-1, 1) = 0");
+
+  // Test 3: Zero
+  const result3 = add(0, 0);
+  if (result3 !== 0) {
+    console.error(`FAIL: add(0, 0) expected 0 but got ${result3}`);
+    process.exit(1);
+  }
+  console.log("PASS: add(0, 0) = 0");
+
+  console.log("\nAll tests passed!");
+}
+
+runTests();

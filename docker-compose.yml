@@ -1,0 +1,24 @@
+# Docker Compose for Jenkins CI/CD
+# =================================
+# Run with:    docker-compose up -d
+# Stop with:   docker-compose down
+# Access at:   http://localhost:8080
+#
+# Jenkins data is stored in a Docker volume called "jenkins_home"
+# so your configuration survives container restarts.
+
+services:
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8080:8080"    # Jenkins web interface
+      - "50000:50000"  # Jenkins agent communication
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
