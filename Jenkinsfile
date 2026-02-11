@@ -88,15 +88,6 @@ pipeline {
      * "success" runs only if everything passed.
      * "failure" runs only if something failed.
      * "always" runs no matter what.
-     *
-     * EMAIL SETUP (using Mailtrap for testing):
-     *   Manage Jenkins → System → E-mail Notification (scroll to bottom)
-     *   - SMTP server: sandbox.smtp.mailtrap.io
-     *   - Check "Use SMTP Authentication"
-     *   - Username: 44c92abeb920f3
-     *   - Password: (from Mailtrap dashboard)
-     *   - Check "Use TLS"
-     *   - SMTP Port: 587
      */
     post {
         success {

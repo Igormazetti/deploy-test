@@ -1,0 +1,9 @@
+# Custom Jenkins image with libatomic (required by modern Node.js)
+FROM jenkins/jenkins:lts
+
+USER root
+
+# Install libatomic1 — needed by Node.js 20+ on Debian-based images
+RUN apt-get update && apt-get install -y libatomic1 && rm -rf /var/lib/apt/lists/*
+
+USER jenkins
