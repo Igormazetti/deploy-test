@@ -44,6 +44,14 @@ function runTests(): void {
   }
   console.log("PASS: add(1000000, 2000000) = 3000000");
 
+  // Test 5: Decimal result
+  const result5 = add(10, 20);
+  if (result5 !== 30) {
+    console.error(`FAIL: add(10, 20) expected 30 but got ${result5}`);
+    process.exit(1);
+  }
+  console.log("PASS: add(10, 20) = 30");
+
   console.log("\nAll tests passed!");
 }
 
