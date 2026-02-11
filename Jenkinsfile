@@ -95,37 +95,38 @@ pipeline {
             echo '===================================='
             echo 'Pipeline completed successfully!'
             echo '===================================='
-            sh """
-                curl --ssl-reqd \
-                  --url 'smtps://sandbox.smtp.mailtrap.io:465' \
-                  --user '44c92abeb920f3:${env.MAILTRAP_PASSWORD}' \
+            sh '''
+                curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+                  --user '44c92abeb920f3:'"$MAILTRAP_PASSWORD"'' \
                   --mail-from 'jenkins@deploy-test.com' \
-                  --mail-rcpt '${env.NOTIFY_EMAIL}' \
-                  --header 'Subject: SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}' \
-                  --header 'From: Jenkins <jenkins@deploy-test.com>' \
-                  --header 'To: ${env.NOTIFY_EMAIL}' \
-                  -F '=(;type=multipart/mixed' \
-                  -F "=The pipeline completed successfully.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL};type=text/plain" \
-                  -F '=)'
-            """
+                  --mail-rcpt 'iigormazetti@hotmail.com' \
+                  --upload-file - <<EOF
+From: Jenkins <jenkins@deploy-test.com>
+To: iigormazetti@hotmail.com
+Subject: SUCCESS: Build completed successfully
+
+The pipeline completed successfully.
+All tests passed!
+EOF
+            '''
         }
         failure {
             echo '===================================='
             echo 'Pipeline FAILED! Check the logs above.'
             echo '===================================='
-            sh """
-                curl --ssl-reqd \
-                  --url 'smtps://sandbox.smtp.mailtrap.io:465' \
-                  --user '44c92abeb920f3:${env.MAILTRAP_PASSWORD}' \
+            sh '''
+                curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+                  --user '44c92abeb920f3:'"$MAILTRAP_PASSWORD"'' \
                   --mail-from 'jenkins@deploy-test.com' \
-                  --mail-rcpt '${env.NOTIFY_EMAIL}' \
-                  --header 'Subject: FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}' \
-                  --header 'From: Jenkins <jenkins@deploy-test.com>' \
-                  --header 'To: ${env.NOTIFY_EMAIL}' \
-                  -F '=(;type=multipart/mixed' \
-                  -F "=The pipeline FAILED.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}console;type=text/plain" \
-                  -F '=)'
-            """
+                  --mail-rcpt 'iigormazetti@hotmail.com' \
+                  --upload-file - <<EOF
+From: Jenkins <jenkins@deploy-test.com>
+To: iigormazetti@hotmail.com
+Subject: FAILURE: Build failed
+
+The pipeline FAILED. Check the Jenkins logs for details.
+EOF
+            '''
         }
     }
 }
