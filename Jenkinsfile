@@ -26,7 +26,8 @@ pipeline {
     // Environment variables available to all stages.
     // Change NOTIFY_EMAIL to your actual email address.
     environment {
-        NOTIFY_EMAIL = 'iigormazetti@hotmail.com' 
+        NOTIFY_EMAIL = 'iigormazetti@hotmail.com'
+        MAILTRAP_PASSWORD = credentials('mailtrap-password')
     }
 
     // "tools" lets Jenkins automatically use installed tools.
@@ -94,17 +95,37 @@ pipeline {
             echo '===================================='
             echo 'Pipeline completed successfully!'
             echo '===================================='
-            emailext to: "${env.NOTIFY_EMAIL}",
-                     subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                     body: "The pipeline completed successfully.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}"
+            sh """
+                curl --ssl-reqd \
+                  --url 'smtps://sandbox.smtp.mailtrap.io:465' \
+                  --user '44c92abeb920f3:${env.MAILTRAP_PASSWORD}' \
+                  --mail-from 'jenkins@deploy-test.com' \
+                  --mail-rcpt '${env.NOTIFY_EMAIL}' \
+                  --header 'Subject: SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}' \
+                  --header 'From: Jenkins <jenkins@deploy-test.com>' \
+                  --header 'To: ${env.NOTIFY_EMAIL}' \
+                  -F '=(;type=multipart/mixed' \
+                  -F "=The pipeline completed successfully.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL};type=text/plain" \
+                  -F '=)'
+            """
         }
         failure {
             echo '===================================='
             echo 'Pipeline FAILED! Check the logs above.'
             echo '===================================='
-            emailext to: "${env.NOTIFY_EMAIL}",
-                     subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                     body: "The pipeline FAILED.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}console"
+            sh """
+                curl --ssl-reqd \
+                  --url 'smtps://sandbox.smtp.mailtrap.io:465' \
+                  --user '44c92abeb920f3:${env.MAILTRAP_PASSWORD}' \
+                  --mail-from 'jenkins@deploy-test.com' \
+                  --mail-rcpt '${env.NOTIFY_EMAIL}' \
+                  --header 'Subject: FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}' \
+                  --header 'From: Jenkins <jenkins@deploy-test.com>' \
+                  --header 'To: ${env.NOTIFY_EMAIL}' \
+                  -F '=(;type=multipart/mixed' \
+                  -F "=The pipeline FAILED.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}console;type=text/plain" \
+                  -F '=)'
+            """
         }
     }
 }
