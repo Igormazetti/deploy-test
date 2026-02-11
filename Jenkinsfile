@@ -89,33 +89,31 @@ pipeline {
      * "failure" runs only if something failed.
      * "always" runs no matter what.
      *
-     * EMAIL SETUP REQUIRED IN JENKINS:
+     * EMAIL SETUP (using Mailtrap for testing):
      *   Manage Jenkins → System → E-mail Notification (scroll to bottom)
-     *   - SMTP server: smtp-mail.outlook.com
+     *   - SMTP server: sandbox.smtp.mailtrap.io
      *   - Check "Use SMTP Authentication"
-     *   - Username: iigormazetti@hotmail.com
-     *   - Password: your Outlook/Hotmail password (or app password if 2FA is enabled)
+     *   - Username: 44c92abeb920f3
+     *   - Password: (from Mailtrap dashboard)
      *   - Check "Use TLS"
      *   - SMTP Port: 587
-     *   - Reply-To: iigormazetti@hotmail.com
-     *   - Test by clicking "Test configuration by sending test e-mail"
      */
     post {
         success {
             echo '===================================='
             echo 'Pipeline completed successfully!'
             echo '===================================='
-            mail to: "${env.NOTIFY_EMAIL}",
-                 subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The pipeline completed successfully.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}"
+            emailext to: "${env.NOTIFY_EMAIL}",
+                     subject: "SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     body: "The pipeline completed successfully.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}"
         }
         failure {
             echo '===================================='
             echo 'Pipeline FAILED! Check the logs above.'
             echo '===================================='
-            mail to: "${env.NOTIFY_EMAIL}",
-                 subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The pipeline FAILED.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}console"
+            emailext to: "${env.NOTIFY_EMAIL}",
+                     subject: "FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     body: "The pipeline FAILED.\n\nJob: ${env.JOB_NAME}\nBuild: #${env.BUILD_NUMBER}\nCheck the logs: ${env.BUILD_URL}console"
         }
     }
 }
