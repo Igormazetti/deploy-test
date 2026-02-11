@@ -36,6 +36,14 @@ function runTests(): void {
   }
   console.log("PASS: add(0, 0) = 0");
 
+  // Test 4: Large numbers
+  const result4 = add(1000000, 2000000);
+  if (result4 !== 3000000) {
+    console.error(`FAIL: add(1000000, 2000000) expected 3000000 but got ${result4}`);
+    process.exit(1);
+  }
+  console.log("PASS: add(1000000, 2000000) = 3000000");
+
   console.log("\nAll tests passed!");
 }
 
