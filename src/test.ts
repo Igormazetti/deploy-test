@@ -10,7 +10,7 @@ function add(a: number, b: number): number {
 }
 
 function runTests(): void {
-  console.log("Running tests...\n");
+  console.log("Running tests\n");
 
   // Test 1: Basic addition
   const result1 = add(2, 3);
