@@ -95,6 +95,8 @@ pipeline {
             steps {
                 echo 'Deploying application...'
                 sh 'docker compose -f docker-compose.app.yml up --build -d'
+                echo 'Waiting for migrations to complete...'
+                sh 'sleep 10 && docker logs deploy-test-app 2>&1'
             }
         }
     }
