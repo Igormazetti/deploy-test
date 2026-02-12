@@ -11,7 +11,6 @@ COPY prisma ./prisma
 COPY src ./src
 
 RUN npm run build
-RUN npx prisma generate
 
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
