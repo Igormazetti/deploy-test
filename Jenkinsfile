@@ -82,6 +82,22 @@ pipeline {
                 sh 'npm test'
             }
         }
+
+        /*
+         * STAGE 5: Deploy
+         * Build the Docker image and start the API container.
+         * This runs "docker compose up --build -d" which:
+         *   1. Builds a new Docker image from the Dockerfile
+         *   2. Stops the old container (if running)
+         *   3. Starts a new container with the updated code
+         *   4. The API will be available at http://localhost:3000
+         */
+        stage('Deploy') {
+            steps {
+                echo 'Deploying application...'
+                sh 'docker compose -f docker-compose.app.yml up --build -d'
+            }
+        }
     }
 
     /*

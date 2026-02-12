@@ -1,9 +1,17 @@
-# Custom Jenkins image with libatomic (required by modern Node.js)
+# Custom Jenkins image with libatomic + Docker CLI
 FROM jenkins/jenkins:lts
 
 USER root
 
-# Install libatomic1 — needed by Node.js 20+ on Debian-based images
-RUN apt-get update && apt-get install -y libatomic1 && rm -rf /var/lib/apt/lists/*
+# Install libatomic1 (needed by Node.js 20+) and Docker CLI
+RUN apt-get update && \
+    apt-get install -y libatomic1 ca-certificates curl gnupg && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli docker-compose-plugin && \
+    rm -rf /var/lib/apt/lists/*
 
 USER jenkins
