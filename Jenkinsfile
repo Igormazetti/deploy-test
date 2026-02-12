@@ -30,10 +30,9 @@ pipeline {
         MAILTRAP_PASSWORD = credentials('mailtrap-password')
     }
 
-    // "tools" lets Jenkins automatically use installed tools.
     // We need Node.js, which we will configure in Jenkins settings later.
     tools {
-        nodejs 'NodeJS'  // This name must match what we configure in Jenkins
+        nodejs 'NodeJS'  // configure in Jenkins - NodeJS instalações, seta esse valor no campo Nome
     }
 
     stages {

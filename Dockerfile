@@ -6,10 +6,16 @@ COPY package*.json ./
 RUN npm install
 
 COPY tsconfig.json ./
+COPY prisma.config.ts ./
+COPY prisma ./prisma
 COPY src ./src
 
 RUN npm run build
+RUN npx prisma generate
+
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["./entrypoint.sh"]

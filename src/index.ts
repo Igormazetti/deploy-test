@@ -1,12 +1,23 @@
-import express from 'express';
+import Fastify from 'fastify';
+import { PrismaClient } from './generated/prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 
-const app = express();
+const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
+const app = Fastify();
 const PORT = 3000;
 
-app.get('/', (req, res) => {
-  res.json({ message: 'Hello World!' });
+app.get('/users', async () => {
+  const users = await prisma.user.findMany();
+  return users;
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+app.listen({ port: PORT, host: '0.0.0.0' }, (err, address) => {
+  if (err) {
+    console.error(err);
+    process.exit(1);
+  }
+  console.log(`Server running on ${address}`);
 });
