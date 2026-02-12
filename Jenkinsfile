@@ -24,7 +24,6 @@ pipeline {
     agent any
 
     // Environment variables available to all stages.
-    // Change NOTIFY_EMAIL to your actual email address.
     environment {
         NOTIFY_EMAIL = 'iigormazetti@hotmail.com'
         MAILTRAP_PASSWORD = credentials('mailtrap-password')
