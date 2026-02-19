@@ -1,263 +1,137 @@
-# Deploy Test - Jenkins CI/CD with GitHub
+# CI/CD com Jenkins, Docker, Prisma e GitHub
 
-Automatic CI/CD pipeline: push code to GitHub, Jenkins builds, tests, and deploys your Fastify API + PostgreSQL in Docker containers with automatic database migrations.
-
-## How It Works
-
-```
-You push code to GitHub
-        |
-GitHub sends a webhook to Jenkins
-        |
-Jenkins pulls the code and runs the pipeline:
-        |
-   1. Checkout  - pulls code from GitHub
-   2. Install   - runs npm install
-   3. Build     - prisma generate + tsc (compiles TypeScript)
-   4. Test      - runs the test suite
-   5. Deploy    - builds Docker image, starts Postgres + app containers
-        |        - entrypoint waits for Postgres, runs migrations, starts server
-        |
-API is live at http://localhost:3000
-Email notification sent (success or failure)
-```
-
-## Tech Stack
-
-- **Runtime**: Node.js 22 + TypeScript
-- **API Framework**: Fastify
-- **Database**: PostgreSQL 16 (Docker)
-- **ORM**: Prisma 7 (with `@prisma/adapter-pg`)
-- **CI/CD**: Jenkins (Declarative Pipeline)
-- **Containerization**: Docker + Docker Compose
-
-## Project Structure
-
-```
-deploy/
-  Jenkinsfile            <- Pipeline definition (what Jenkins executes)
-  Dockerfile             <- Docker image for the API app
-  Dockerfile.jenkins     <- Custom Jenkins image (with Node.js support + Docker CLI)
-  docker-compose.yml     <- Runs Jenkins (port 8080)
-  docker-compose.app.yml <- Runs Postgres + API app (port 3000)
-  entrypoint.sh          <- Waits for Postgres, runs migrations, starts server
-  package.json           <- Node.js project config
-  tsconfig.json          <- TypeScript compiler config
-  prisma.config.ts       <- Prisma config (datasource URL)
-  prisma/
-    schema.prisma        <- Database schema (User model)
-    migrations/          <- SQL migration files
-  src/
-    index.ts             <- Fastify API with GET /users route
-    test.ts              <- Test suite
-```
-
-## Database
-
-### Schema
-
-The Prisma schema defines a `User` model:
-
-```prisma
-model User {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  createdAt DateTime @default(now())
-}
-```
-
-### Migrations
-
-Migrations run automatically on every deploy via `entrypoint.sh`:
-
-1. Container starts
-2. `pg_isready` waits until Postgres is accepting connections
-3. `npx prisma migrate deploy` applies any pending migrations
-4. `node dist/index.js` starts the API
-
-### API Routes
-
-| Method | Route    | Description        |
-|--------|----------|--------------------|
-| GET    | `/users` | List all users     |
-
-## Prerequisites
-
-- Docker Desktop installed and running
-- Git
-- A GitHub account
-- ngrok account (free) for webhooks
-
-## Quick Start
-
-### 1. Start Jenkins
-
-```bash
-docker-compose up -d --build
-```
-
-Jenkins will be available at http://localhost:8080.
-
-On first run:
-- Get the admin password: `docker logs jenkins`
-- Open http://localhost:8080 and paste the password
-- Click "Install suggested plugins"
-- Create an admin user
-
-### 2. Configure Jenkins
-
-#### Install NodeJS Plugin
-- Manage Jenkins > Plugins > Available plugins > search "NodeJS" > Install
-
-#### Configure Node.js Tool
-- Manage Jenkins > Tools > NodeJS > Add NodeJS
-- **Name**: `NodeJS` (must match the Jenkinsfile exactly)
-- Check "Install automatically"
-- Pick the latest version
-- Save
-
-#### Add Mailtrap Credentials
-- Manage Jenkins > Credentials > (global) > Add Credentials
-- Kind: "Secret text"
-- Secret: your Mailtrap SMTP password
-- ID: `mailtrap-password`
-- Create
-
-#### Create the Pipeline Job
-- New Item > name: `deploy-test` > Pipeline > OK
-- General: check "GitHub project", URL: `https://github.com/YOUR_USER/deploy-test/`
-- Build Triggers: check "GitHub hook trigger for GITScm polling"
-- Pipeline:
-  - Definition: "Pipeline script from SCM"
-  - SCM: Git
-  - Repository URL: `https://github.com/YOUR_USER/deploy-test.git`
-  - Branch: `*/main`
-  - Script Path: `Jenkinsfile`
-- Save
-
-### 3. Set Up Webhooks (for automatic triggers)
-
-Since Jenkins runs locally, GitHub can't reach it directly. Use ngrok to create a tunnel:
-
-```bash
-ngrok http 8080
-```
-
-Copy the public URL (e.g., `https://abc123.ngrok-free.app`), then:
-
-- Update Jenkins URL: Manage Jenkins > System > Jenkins URL > paste ngrok URL
-- Add webhook on GitHub: repo Settings > Webhooks > Add webhook
-  - Payload URL: `https://YOUR-NGROK-URL/github-webhook/`
-  - Content type: `application/json`
-  - Events: "Just the push event"
-
-### 4. Test It
-
-Push any change to the `main` branch. Jenkins will automatically:
-1. Pull the code
-2. Install dependencies
-3. Generate Prisma client and compile TypeScript
-4. Run tests
-5. Deploy Postgres + app in Docker containers
-6. Wait for Postgres, run database migrations
-7. Start the Fastify server
-8. Send an email notification
-
-The API will be live at http://localhost:3000/users.
+Guia para implementar um pipeline de deploy automático: push no GitHub → Jenkins constrói, testa e sobe a aplicação em containers Docker, roda migrations do Prisma e envia e-mail de notificação.
 
 ---
 
-## File Reference
+## Como funciona
 
-### Jenkinsfile
-
-The Jenkinsfile defines the CI/CD pipeline using Jenkins' Declarative Pipeline syntax.
-
-```groovy
-pipeline {
-    agent any            // Run on any available Jenkins executor
-
-    environment {        // Variables available to all stages
-        NOTIFY_EMAIL = 'your@email.com'
-        MAILTRAP_PASSWORD = credentials('mailtrap-password')  // Pulls from Jenkins credentials
-    }
-
-    tools {
-        nodejs 'NodeJS'  // Name must match Jenkins > Tools > NodeJS config
-    }
-
-    stages {
-        stage('Checkout') { ... }  // Pull code from GitHub
-        stage('Install')  { ... }  // npm install
-        stage('Build')    { ... }  // prisma generate && tsc
-        stage('Test')     { ... }  // npm test
-        stage('Deploy')   { ... }  // docker compose up --build -d + check logs
-    }
-
-    post {
-        success { ... }  // Runs only if all stages pass
-        failure { ... }  // Runs only if any stage fails
-    }
-}
+```
+git push (GitHub)
+        |
+  Webhook dispara
+        |
+   Jenkins recebe
+        |
+   Pipeline executa:
+     1. Checkout  → clona o repositório
+     2. Install   → npm install
+     3. Build     → prisma generate + tsc (compila TypeScript)
+     4. Test      → npm test
+     5. Deploy    → docker compose up --build -d
+                     └─ container inicia → aguarda Postgres
+                                        → prisma migrate deploy
+                                        → node dist/index.js
+        |
+   post { success } → curl envia e-mail via SMTP (Mailtrap)
+   post { failure } → curl envia e-mail de falha
 ```
 
-#### Key concepts:
+---
 
-| Keyword | What it does |
-|---------|-------------|
-| `agent any` | Run the pipeline on any available machine |
-| `environment` | Define variables accessible in all stages |
-| `credentials('id')` | Securely pull a secret from Jenkins credentials store |
-| `tools` | Auto-install tools (Node.js in our case) |
-| `stage('Name')` | A named step in the pipeline |
-| `sh 'command'` | Run a shell command (Linux). Use `bat` for Windows |
-| `checkout scm` | Pull code from the configured repository |
-| `post` | Actions that run after all stages complete |
+## Stack
 
-### docker-compose.yml (Jenkins)
+| Camada | Tecnologia |
+|--------|-----------|
+| Runtime | Node.js 22 + TypeScript |
+| API | Fastify 5 |
+| ORM | Prisma 7 (`@prisma/adapter-pg`) |
+| Banco | PostgreSQL 16 (Docker) |
+| CI/CD | Jenkins (Declarative Pipeline) |
+| Containers | Docker + Docker Compose |
+| Notificações | Mailtrap (SMTP sandbox) via `curl` |
 
-Runs the Jenkins server.
+---
 
-```yaml
-services:
-  jenkins:
-    build:
-      context: .
-      dockerfile: Dockerfile.jenkins   # Custom Jenkins image
-    container_name: jenkins
-    user: root                          # Needed to access Docker socket
-    ports:
-      - "8080:8080"                     # Jenkins web interface
-      - "50000:50000"                   # Jenkins agent communication
-    volumes:
-      - jenkins_home:/var/jenkins_home  # Persist Jenkins config/data
-      - /var/run/docker.sock:/var/run/docker.sock  # Allow Jenkins to run Docker commands
-    restart: unless-stopped
+## Estrutura do projeto
 
-volumes:
-  jenkins_home:                         # Named volume - survives container restarts
+```
+.
+├── Jenkinsfile              # Pipeline do CI/CD (Jenkins lê este arquivo)
+├── Dockerfile               # Imagem Docker da aplicação Node.js
+├── Dockerfile.jenkins       # Imagem Jenkins customizada (Node.js + Docker CLI)
+├── docker-compose.yml       # Sobe o Jenkins (porta 8080)
+├── docker-compose.app.yml   # Sobe Postgres + API (porta 3000)
+├── entrypoint.sh            # Aguarda Postgres → roda migrations → inicia servidor
+├── prisma.config.ts         # Configuração do Prisma (datasource via env)
+├── prisma/
+│   ├── schema.prisma        # Schema do banco (modelos)
+│   └── migrations/          # SQL gerado pelo Prisma
+├── src/
+│   ├── index.ts             # API Fastify (GET /users)
+│   └── test.ts              # Suite de testes
+├── tsconfig.json
+└── package.json
 ```
 
-| Field | What it does |
-|-------|-------------|
-| `build.dockerfile` | Uses our custom Dockerfile (with Docker CLI + libatomic) |
-| `user: root` | Runs as root so Jenkins can access the Docker socket |
-| `ports: 8080` | Exposes Jenkins web UI |
-| `jenkins_home` volume | Persists all Jenkins data (jobs, plugins, config) |
-| `docker.sock` volume | Lets Jenkins run Docker commands on the host |
+---
 
-**Commands:**
+## Pré-requisitos
+
+- Docker Desktop instalado e rodando
+- Git + conta no GitHub
+- Conta no [Mailtrap](https://mailtrap.io) (gratuita) para notificações por e-mail
+- ngrok (gratuito) para expor o Jenkins ao GitHub via webhook
+
+---
+
+## Implementação passo a passo
+
+### 1. Criar os arquivos do projeto
+
+#### `Dockerfile` — imagem da aplicação
+
+```dockerfile
+FROM node:22-alpine
+
+# pg_isready: verifica se o Postgres está pronto (usado no entrypoint)
+RUN apk add --no-cache postgresql-client
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY tsconfig.json ./
+COPY prisma.config.ts ./
+COPY prisma ./prisma
+COPY src ./src
+
+# Compila TypeScript e gera o Prisma client
+RUN npm run build
+
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
+
+EXPOSE 3000
+
+CMD ["./entrypoint.sh"]
+```
+
+#### `entrypoint.sh` — aguarda Postgres, roda migrations, inicia servidor
+
+Este script é o ponto de entrada do container. Executa toda vez que o container sobe.
+
 ```bash
-docker-compose up -d --build   # Start Jenkins (rebuild image if Dockerfile changed)
-docker-compose down            # Stop Jenkins (config is preserved in volume)
-docker-compose down -v         # Stop Jenkins AND delete all data
-docker logs jenkins            # View Jenkins logs
+#!/bin/sh
+set -e
+
+echo "Waiting for Postgres to be ready..."
+until pg_isready -h db -p 5432 -U prisma 2>/dev/null; do
+  sleep 1
+done
+echo "Postgres is ready!"
+
+echo "Running Prisma migrations..."
+npx prisma migrate deploy
+
+echo "Starting application..."
+exec node dist/index.js
 ```
 
-### docker-compose.app.yml (Postgres + API)
+> `prisma migrate deploy` aplica apenas migrations pendentes — nunca cria novas. Seguro para produção.
 
-Runs PostgreSQL and the Fastify API. Jenkins triggers this during the Deploy stage.
+#### `docker-compose.app.yml` — Postgres + API
 
 ```yaml
 services:
@@ -269,7 +143,8 @@ services:
       POSTGRES_PASSWORD: prisma
       POSTGRES_DB: deploy
     volumes:
-      - pgdata:/var/lib/postgresql/data  # Persist database data
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
 
   app:
     build: .
@@ -280,131 +155,432 @@ services:
       DATABASE_URL: postgresql://prisma:prisma@db:5432/deploy
     depends_on:
       - db
+    restart: unless-stopped
 
 volumes:
   pgdata:
 ```
 
-| Field | What it does |
-|-------|-------------|
-| `db` service | PostgreSQL 16 database, data persisted in `pgdata` volume |
-| `app` service | Fastify API, connects to `db` via Docker internal network |
-| `DATABASE_URL` | Connection string passed to Prisma at runtime |
-| `depends_on: db` | Ensures Postgres container starts before the app |
+> O `DATABASE_URL` usa `db` como host — nome do serviço dentro da rede Docker interna.
 
-**Commands:**
-```bash
-docker compose -f docker-compose.app.yml up --build -d   # Build and start
-docker compose -f docker-compose.app.yml down             # Stop
-docker compose -f docker-compose.app.yml logs             # View logs
-docker compose -f docker-compose.app.yml logs app         # View only app logs
-```
+#### `Dockerfile.jenkins` — Jenkins com Docker CLI e Node.js
 
-### Dockerfile (API Application)
-
-Builds the API app image.
+O Jenkins precisa do Docker CLI para executar `docker compose` durante o deploy.
 
 ```dockerfile
-FROM node:22-alpine               # Lightweight Node.js base image
+FROM jenkins/jenkins:lts
 
-RUN apk add --no-cache postgresql-client  # pg_isready for entrypoint
+USER root
 
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm install
-
-COPY tsconfig.json ./
-COPY prisma.config.ts ./
-COPY prisma ./prisma              # Schema + migrations
-COPY src ./src
-
-RUN npm run build                 # prisma generate && tsc
-
-COPY entrypoint.sh ./
-RUN chmod +x entrypoint.sh
-
-EXPOSE 3000
-
-CMD ["./entrypoint.sh"]           # Wait for DB, migrate, start server
-```
-
-### entrypoint.sh
-
-Runs on every container start (every deploy):
-
-```bash
-#!/bin/sh
-set -e
-
-# 1. Wait for Postgres to be ready
-until pg_isready -h db -p 5432 -U prisma; do sleep 1; done
-
-# 2. Apply pending migrations
-npx prisma migrate deploy
-
-# 3. Start the server
-exec node dist/index.js
-```
-
-### Dockerfile.jenkins (Custom Jenkins Image)
-
-Extends the official Jenkins image with extra tools.
-
-```dockerfile
-FROM jenkins/jenkins:lts                    # Official Jenkins LTS image
-
-USER root                                   # Switch to root to install packages
-
+# libatomic1: exigido pelo Node.js 20+
+# docker-ce-cli + docker-compose-plugin: para rodar docker dentro do Jenkins
 RUN apt-get update && \
-    apt-get install -y libatomic1 \         # Required by Node.js 20+
-    docker-ce-cli docker-compose-plugin     # Docker CLI for deploy stage
+    apt-get install -y libatomic1 ca-certificates curl gnupg && \
+    install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+      https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+      > /etc/apt/sources.list.d/docker.list && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli docker-compose-plugin && \
+    rm -rf /var/lib/apt/lists/*
 
-RUN git config --global --add safe.directory '*'  # Fix git ownership warnings
+# Evita warnings de permissão do git quando rodando como root
+RUN git config --global --add safe.directory '*'
 
-USER jenkins                                # Switch back to jenkins user
+USER jenkins
+```
+
+#### `docker-compose.yml` — Jenkins
+
+```yaml
+services:
+  jenkins:
+    build:
+      context: .
+      dockerfile: Dockerfile.jenkins
+    container_name: jenkins
+    user: root                           # Necessário para acessar o socket do Docker
+    ports:
+      - "8080:8080"                      # Interface web do Jenkins
+      - "50000:50000"                    # Comunicação com agentes Jenkins
+    volumes:
+      - jenkins_home:/var/jenkins_home   # Persiste configurações e jobs
+      - /var/run/docker.sock:/var/run/docker.sock  # Compartilha o Docker do host
+    environment:
+      - JAVA_OPTS=-Djenkins.install.runSetupWizard=true
+    restart: unless-stopped
+
+volumes:
+  jenkins_home:
+```
+
+> O volume `/var/run/docker.sock` é o que permite o Jenkins executar `docker compose` no host.
+
+---
+
+### 2. Configurar o Prisma
+
+#### `prisma/schema.prisma`
+
+```prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  createdAt DateTime @default(now())
+}
+```
+
+#### `prisma.config.ts`
+
+Lê o `DATABASE_URL` da variável de ambiente — injetada pelo Docker Compose no container.
+
+```ts
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: process.env["DATABASE_URL"],
+  },
+});
+```
+
+#### Criar a primeira migration (local, durante desenvolvimento)
+
+```bash
+# Cria a migration e aplica no banco local
+npx prisma migrate dev --name init
+```
+
+Isso gera os arquivos em `prisma/migrations/`. Esses arquivos devem ser commitados no Git — o Jenkins vai usá-los no deploy.
+
+---
+
+### 3. Configurar o e-mail com Mailtrap
+
+O e-mail é enviado via `curl` diretamente pelo SMTP do Mailtrap — sem biblioteca Node.js.
+
+#### 3.1. Criar conta no Mailtrap
+
+1. Acesse [mailtrap.io](https://mailtrap.io) e crie uma conta gratuita
+2. Em **Email Testing > Inboxes**, crie uma inbox (ex: `jenkins-notifications`)
+3. Clique na inbox e vá em **SMTP Settings**
+4. Anote as credenciais SMTP:
+   - **Host**: `sandbox.smtp.mailtrap.io`
+   - **Port**: `2525`
+   - **Username**: (ex: `44c92abeb920f3`)
+   - **Password**: (ex: `abc123def456`)
+
+#### 3.2. Adicionar a senha no Jenkins
+
+No Jenkins, a senha do Mailtrap é armazenada como credencial segura (não fica exposta nos logs).
+
+- **Manage Jenkins > Credentials > (global) > Add Credentials**
+  - Kind: `Secret text`
+  - Secret: *(cole o password do Mailtrap)*
+  - ID: `mailtrap-password`
+  - Save
+
+#### 3.3. Como funciona no Jenkinsfile
+
+O `Jenkinsfile` injeta a credencial via `credentials()` e usa `curl` para enviar o e-mail:
+
+```groovy
+environment {
+    NOTIFY_EMAIL = 'seu@email.com'
+    MAILTRAP_PASSWORD = credentials('mailtrap-password')  // lê do Jenkins Credentials
+}
+```
+
+```groovy
+post {
+    success {
+        sh '''
+            curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+              --user 'SEU_SMTP_USERNAME:'"$MAILTRAP_PASSWORD"'' \
+              --mail-from 'jenkins@seu-projeto.com' \
+              --mail-rcpt 'seu@email.com' \
+              --upload-file - <<EOF
+From: Jenkins <jenkins@seu-projeto.com>
+To: seu@email.com
+Subject: SUCCESS: Build completed successfully
+
+The pipeline completed successfully.
+All tests passed!
+EOF
+        '''
+    }
+    failure {
+        sh '''
+            curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+              --user 'SEU_SMTP_USERNAME:'"$MAILTRAP_PASSWORD"'' \
+              --mail-from 'jenkins@seu-projeto.com' \
+              --mail-rcpt 'seu@email.com' \
+              --upload-file - <<EOF
+From: Jenkins <jenkins@seu-projeto.com>
+To: seu@email.com
+Subject: FAILURE: Build failed
+
+The pipeline FAILED. Check the Jenkins logs for details.
+EOF
+        '''
+    }
+}
+```
+
+> A senha fica em `$MAILTRAP_PASSWORD` (variável de ambiente injetada pelo Jenkins).
+> O SMTP username fica diretamente no script — somente a senha precisa ser protegida.
+
+---
+
+### 4. Escrever o Jenkinsfile completo
+
+```groovy
+pipeline {
+    agent any
+
+    environment {
+        NOTIFY_EMAIL = 'seu@email.com'
+        MAILTRAP_PASSWORD = credentials('mailtrap-password')
+    }
+
+    tools {
+        nodejs 'NodeJS'  // nome configurado em: Manage Jenkins > Tools > NodeJS
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm  // clona o repositório configurado no job
+            }
+        }
+
+        stage('Install') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'npm run build'  // prisma generate && tsc
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                sh 'docker compose -f docker-compose.app.yml up --build -d'
+                // Aguarda o entrypoint rodar as migrations e o servidor subir
+                sh 'sleep 10 && docker logs deploy-test-app 2>&1'
+            }
+        }
+    }
+
+    post {
+        success {
+            sh '''
+                curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+                  --user 'SEU_SMTP_USERNAME:'"$MAILTRAP_PASSWORD"'' \
+                  --mail-from 'jenkins@seu-projeto.com' \
+                  --mail-rcpt 'seu@email.com' \
+                  --upload-file - <<EOF
+From: Jenkins <jenkins@seu-projeto.com>
+To: seu@email.com
+Subject: SUCCESS: Build completed successfully
+
+The pipeline completed successfully.
+All tests passed!
+EOF
+            '''
+        }
+        failure {
+            sh '''
+                curl --url 'smtp://sandbox.smtp.mailtrap.io:2525' \
+                  --user 'SEU_SMTP_USERNAME:'"$MAILTRAP_PASSWORD"'' \
+                  --mail-from 'jenkins@seu-projeto.com' \
+                  --mail-rcpt 'seu@email.com' \
+                  --upload-file - <<EOF
+From: Jenkins <jenkins@seu-projeto.com>
+To: seu@email.com
+Subject: FAILURE: Build failed
+
+The pipeline FAILED. Check the Jenkins logs for details.
+EOF
+            '''
+        }
+    }
+}
+```
+
+---
+
+### 5. Subir o Jenkins
+
+```bash
+docker-compose up -d --build
+```
+
+Aguarde ~30 segundos e acesse http://localhost:8080.
+
+**Primeiro acesso:**
+```bash
+docker logs jenkins   # copie a senha de admin
+```
+
+- Cole a senha, clique em **Install suggested plugins**, crie um usuário admin.
+
+#### Instalar plugin NodeJS
+
+- **Manage Jenkins > Plugins > Available plugins** → busque `NodeJS` → Install
+
+#### Configurar o Node.js
+
+- **Manage Jenkins > Tools > NodeJS > Add NodeJS**
+  - Name: `NodeJS` *(exatamente este valor — deve ser igual ao `tools { nodejs 'NodeJS' }` no Jenkinsfile)*
+  - Check: Install automatically
+  - Escolha a versão mais recente
+  - Save
+
+#### Adicionar credencial do Mailtrap
+
+- **Manage Jenkins > Credentials > (global) > Add Credentials**
+  - Kind: `Secret text`
+  - Secret: *(password do Mailtrap SMTP)*
+  - ID: `mailtrap-password`
+
+#### Criar o job Pipeline
+
+- **New Item** → nome: `deploy-test` → **Pipeline** → OK
+- **General**: marque *GitHub project*, coloque a URL do seu repo
+- **Build Triggers**: marque *GitHub hook trigger for GITScm polling*
+- **Pipeline**:
+  - Definition: `Pipeline script from SCM`
+  - SCM: `Git`
+  - Repository URL: `https://github.com/SEU_USUARIO/SEU_REPO.git`
+  - Branch: `*/main`
+  - Script Path: `Jenkinsfile`
+- Save
+
+---
+
+### 6. Configurar o webhook do GitHub (para trigger automático)
+
+O Jenkins roda localmente, então o GitHub não consegue alcançá-lo diretamente. Use o ngrok para criar um túnel público.
+
+```bash
+ngrok http 8080
+```
+
+Copie a URL pública (ex: `https://abc123.ngrok-free.app`).
+
+**No Jenkins:**
+- **Manage Jenkins > System > Jenkins URL** → cole a URL do ngrok → Save
+
+**No GitHub:**
+- Repo → **Settings > Webhooks > Add webhook**
+  - Payload URL: `https://SUA-URL-NGROK/github-webhook/`
+  - Content type: `application/json`
+  - Events: *Just the push event*
+  - Add webhook
+
+---
+
+### 7. Testar o pipeline
+
+```bash
+git add .
+git commit -m "trigger pipeline"
+git push
+```
+
+O Jenkins recebe o webhook, executa o pipeline e:
+1. Clona o repositório
+2. Instala dependências
+3. Compila TypeScript e gera o Prisma client
+4. Roda os testes
+5. Faz o deploy via `docker compose up --build -d`
+6. O container aguarda o Postgres, roda `prisma migrate deploy`, inicia o servidor
+7. Envia e-mail de sucesso ou falha
+
+API disponível em: http://localhost:3000/users
+
+---
+
+## O que customizar para o seu projeto
+
+| O que mudar | Onde |
+|-------------|------|
+| E-mail de notificação | `NOTIFY_EMAIL` no `Jenkinsfile` |
+| SMTP username do Mailtrap | `--user 'USERNAME:...'` no `Jenkinsfile` |
+| Credencial Jenkins | ID `mailtrap-password` no Jenkinsfile + na interface do Jenkins |
+| Nome do container | `container_name` no `docker-compose.app.yml` |
+| Porta da API | `ports` no `docker-compose.app.yml` e `EXPOSE` no `Dockerfile` |
+| Senha do banco | `POSTGRES_PASSWORD` e `DATABASE_URL` no `docker-compose.app.yml` |
+| Schema do banco | `prisma/schema.prisma` |
+| Rotas da API | `src/index.ts` |
+
+---
+
+## Comandos úteis
+
+```bash
+# Jenkins
+docker-compose up -d --build         # Sobe/reconstrói o Jenkins
+docker-compose down                   # Para o Jenkins (dados preservados)
+docker-compose down -v                # Para o Jenkins E apaga todos os dados
+docker logs jenkins                   # Logs do Jenkins
+
+# App + Banco
+docker compose -f docker-compose.app.yml up --build -d   # Deploy manual
+docker compose -f docker-compose.app.yml down             # Para os containers
+docker compose -f docker-compose.app.yml logs             # Todos os logs
+docker logs deploy-test-app                                # Logs da aplicação
+docker logs deploy-test-db                                 # Logs do Postgres
+
+# ngrok
+ngrok http 8080                       # Cria túnel para o Jenkins
+
+# Prisma (desenvolvimento local)
+npx prisma migrate dev --name nome    # Cria e aplica nova migration
+npx prisma migrate deploy             # Aplica migrations pendentes (produção)
+npx prisma generate                   # Gera o Prisma client
+npx prisma studio                     # Interface visual do banco
 ```
 
 ---
 
 ## Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| Jenkins says "NodeJS not found" | Manage Jenkins > Tools > NodeJS name must be exactly `NodeJS` |
-| Webhook shows red X on GitHub | Check that ngrok is running and the URL matches |
-| "permission denied" on Docker socket | Make sure `user: root` is set in docker-compose.yml |
-| "not in a git directory" | Rebuild Jenkins: `docker-compose up -d --build` |
-| Build never triggers on push | Check "GitHub hook trigger for GITScm polling" is enabled in the job |
-| Email not sending | Check Mailtrap credentials and that port 2525 is used |
-| API not accessible at :3000 | Run `docker ps` to check if deploy-test-app container is running |
-| Port 5432 already allocated | Another Postgres is running on the host; stop it or the db service doesn't expose host ports (already handled) |
-| Migrations not running | Check `docker logs deploy-test-app` for entrypoint output |
-
-## Useful Commands
-
-```bash
-# Jenkins
-docker-compose up -d --build       # Start/rebuild Jenkins
-docker-compose down                # Stop Jenkins
-docker logs jenkins                # Jenkins logs
-
-# API App + Database
-docker compose -f docker-compose.app.yml up --build -d   # Build and start
-docker compose -f docker-compose.app.yml down             # Stop
-docker compose -f docker-compose.app.yml logs             # All logs
-docker logs deploy-test-app                                # App logs only
-docker logs deploy-test-db                                 # Database logs only
-
-# ngrok
-ngrok http 8080                    # Create tunnel to Jenkins
-
-# Prisma (local development)
-npx prisma generate               # Generate Prisma client
-npx prisma migrate dev             # Create and apply a new migration
-npx prisma migrate deploy          # Apply pending migrations (production)
-npx prisma studio                  # Open database GUI
-
-# Git (triggers the pipeline)
-git add . && git commit -m "my change" && git push
-```
+| Problema | Solução |
+|----------|---------|
+| Jenkins não encontra NodeJS | O nome em *Manage Jenkins > Tools > NodeJS* deve ser exatamente `NodeJS` |
+| Webhook com X vermelho no GitHub | Verifique se o ngrok está rodando e se a URL está atualizada no Jenkins |
+| "permission denied" no Docker socket | Confirme que `user: root` está no `docker-compose.yml` do Jenkins |
+| Build não dispara no push | Confirme *GitHub hook trigger for GITScm polling* no job |
+| E-mail não chega | Verifique o SMTP username no Jenkinsfile e a credencial no Jenkins |
+| API não responde na porta 3000 | `docker ps` para verificar se `deploy-test-app` está rodando |
+| Migrations não rodam | `docker logs deploy-test-app` para ver a saída do entrypoint |
+| "not in a git directory" | Reconstrua o Jenkins: `docker-compose up -d --build` |
